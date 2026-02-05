@@ -85,28 +85,43 @@ class LocalWhisperTranscriber(Transcriber):
     def local_seg_to_seg(local_segments: List[LocalTranscriptSegment]) -> List[Segment]:
         return [seg.to_segment() for seg in local_segments]
 
+    # Map openai-whisper model names to mlx-community HuggingFace repos
+    MLX_MODEL_MAP = {
+        "tiny": "mlx-community/whisper-tiny-mlx",
+        "tiny.en": "mlx-community/whisper-tiny.en-mlx",
+        "base": "mlx-community/whisper-base-mlx",
+        "base.en": "mlx-community/whisper-base.en-mlx",
+        "small": "mlx-community/whisper-small-mlx",
+        "small.en": "mlx-community/whisper-small.en-mlx",
+        "medium": "mlx-community/whisper-medium-mlx",
+        "medium.en": "mlx-community/whisper-medium.en-mlx",
+        "large": "mlx-community/whisper-large-v3-mlx",
+        "large-v3": "mlx-community/whisper-large-v3-mlx",
+    }
+
     def transcribe(self, audio_file_path: str) -> List[Segment]:
-        # Import whisper only when needed to avoid CUDA dependencies during module import
         try:
-            import whisper  # type: ignore[import-untyped]
+            import mlx_whisper  # type: ignore[import-untyped]
         except ImportError as e:
-            self.logger.error(f"Failed to import whisper: {e}")
+            self.logger.error(f"Failed to import mlx_whisper: {e}")
             raise ImportError(
-                "whisper library is required for LocalWhisperTranscriber"
+                "mlx_whisper library is required for LocalWhisperTranscriber"
             ) from e
 
-        self.logger.info("Using local whisper")
-        models = whisper.available_models()
-        self.logger.info(f"Available models: {models}")
-
-        model = whisper.load_model(name=self.whisper_model)
+        # Resolve model name to HuggingFace repo
+        model_repo = self.MLX_MODEL_MAP.get(self.whisper_model, self.whisper_model)
+        self.logger.info(f"Using mlx-whisper with model: {model_repo}")
 
         self.logger.info("Beginning transcription")
         start = time.time()
-        result = model.transcribe(audio_file_path, fp16=False, language="English")
+        result = mlx_whisper.transcribe(
+            audio_file_path,
+            path_or_hf_repo=model_repo,
+            language="English",
+        )
         end = time.time()
         elapsed = end - start
-        self.logger.info(f"Transcription completed in {elapsed}")
+        self.logger.info(f"Transcription completed in {elapsed:.1f}s")
         segments = result["segments"]
         typed_segments = self.convert_to_pydantic(segments)
 

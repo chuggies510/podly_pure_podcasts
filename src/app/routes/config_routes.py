@@ -548,12 +548,12 @@ def _test_local_whisper(whisper_cfg: Dict[str, Any]) -> flask.Response:
     """Test local whisper configuration."""
     model_name = _get_whisper_config_value(whisper_cfg, "model", "base.en")
     try:
-        import whisper  # type: ignore[import-untyped]
+        import mlx_whisper as whisper  # type: ignore[import-untyped]
     except ImportError as e:
         return _make_error_response(f"whisper not installed: {e}")
 
     try:
-        available = whisper.available_models()
+        available = ["tiny", "tiny.en", "base", "base.en", "small", "small.en", "medium", "medium.en", "large", "large-v3"]
     except Exception as e:  # pragma: no cover - library call
         available = []
         logger.warning(f"Failed to list local whisper models: {e}")
@@ -652,12 +652,12 @@ def api_get_whisper_capabilities() -> flask.Response:
 
     local_available = False
     try:  # pragma: no cover - simple import feature check
-        import whisper
+        import mlx_whisper as whisper
 
         # If import succeeds, we consider local whisper available.
         # Optionally probe models list, but ignore failures here.
         try:
-            _ = whisper.available_models()  # noqa: F841
+            pass  # mlx_whisper has no available_models()
         except Exception:
             pass
         local_available = True
