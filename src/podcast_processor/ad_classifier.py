@@ -663,7 +663,7 @@ class AdClassifier:
         # json_schema strict mode — think:false must be set first, then the
         # format schema constrains the output tokens cleanly.
         # Only applies to local Ollama models (openai/ prefix pointing to localhost).
-        if "openai/" in model_call_obj.model_name and self.config.openai_api_base and "localhost" in self.config.openai_api_base:
+        if "openai/" in model_call_obj.model_name and self.config.openai_base_url and "localhost" in self.config.openai_base_url:
             _ad_schema = {
                 "type": "object",
                 "properties": {
