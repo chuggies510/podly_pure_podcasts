@@ -6,6 +6,8 @@ import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
+import httpx
+
 import litellm
 from jinja2 import Template
 from litellm.exceptions import InternalServerError
@@ -658,34 +660,55 @@ class AdClassifier:
             # For older models and non-OpenAI models, use max_tokens
             completion_args["max_tokens"] = self.config.openai_max_tokens
 
-        # Disable thinking tokens and enforce JSON schema via grammar-constrained
-        # sampling. qwen3's thinking tokens conflict with json_schema strict mode —
-        # think:false disables them so the format schema constrains output cleanly.
-        # extra_body is Ollama-specific and ignored by other providers.
-        completion_args["extra_body"] = {
-            "think": False,
-            "format": {
-                "type": "object",
-                "properties": {
-                    "ad_segments": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "segment_offset": {"type": "number"},
-                                "confidence": {"type": "number"},
-                            },
-                            "required": ["segment_offset", "confidence"],
-                            "additionalProperties": False,
-                        },
-                    }
+        return completion_args
+
+    _AD_SCHEMA: Dict[str, Any] = {
+        "type": "object",
+        "properties": {
+            "ad_segments": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "segment_offset": {"type": "number"},
+                        "confidence": {"type": "number"},
+                    },
+                    "required": ["segment_offset", "confidence"],
+                    "additionalProperties": False,
                 },
-                "required": ["ad_segments"],
-                "additionalProperties": False,
-            },
+            }
+        },
+        "required": ["ad_segments"],
+        "additionalProperties": False,
+    }
+
+    def _is_ollama(self) -> bool:
+        base = self.config.openai_base_url or ""
+        return "11434" in base
+
+    def _call_ollama_native(self, messages: List[Dict], timeout: float) -> str:
+        """Call Ollama /api/chat directly with think=False and JSON schema enforcement."""
+        base = (self.config.openai_base_url or "http://localhost:11434/v1").rstrip("/")
+        if base.endswith("/v1"):
+            base = base[:-3]
+        url = f"{base}/api/chat"
+
+        model_name = self.config.llm_model
+        if "/" in model_name:
+            model_name = model_name.split("/", 1)[1]
+
+        payload: Dict[str, Any] = {
+            "model": model_name,
+            "messages": messages,
+            "stream": False,
+            "think": False,
+            "format": self._AD_SCHEMA,
+            "options": {"num_predict": self.config.openai_max_tokens},
         }
 
-        return completion_args
+        resp = httpx.post(url, json=payload, timeout=timeout)
+        resp.raise_for_status()
+        return resp.json()["message"]["content"]
 
     def _generate_user_prompt(
         self,
@@ -1060,17 +1083,26 @@ class AdClassifier:
                 if completion_args is None:
                     return None  # Token limit exceeded
 
-                # Use concurrency limiter if available
-                if self.concurrency_limiter:
-                    with ConcurrencyContext(self.concurrency_limiter, timeout=30.0):
-                        response = litellm.completion(**completion_args)
+                # Route to native Ollama API for local models (enforces JSON schema
+                # and disables thinking tokens which conflict with grammar sampling).
+                if self._is_ollama():
+                    content = self._call_ollama_native(
+                        messages=completion_args["messages"],
+                        timeout=float(self.config.openai_timeout or 300),
+                    )
                 else:
-                    response = litellm.completion(**completion_args)
+                    # Use concurrency limiter if available
+                    if self.concurrency_limiter:
+                        with ConcurrencyContext(self.concurrency_limiter, timeout=30.0):
+                            response = litellm.completion(**completion_args)
+                    else:
+                        response = litellm.completion(**completion_args)
 
-                response_first_choice = response.choices[0]
-                assert isinstance(response_first_choice, Choices)
-                content = response_first_choice.message.content
-                assert content is not None
+                    response_first_choice = response.choices[0]
+                    assert isinstance(response_first_choice, Choices)
+                    content = response_first_choice.message.content
+                    assert content is not None
+
                 raw_response_content = content
 
                 success_res = writer_client.update(
