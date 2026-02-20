@@ -658,13 +658,13 @@ class AdClassifier:
             # For older models and non-OpenAI models, use max_tokens
             completion_args["max_tokens"] = self.config.openai_max_tokens
 
-        # For Ollama models: disable thinking tokens and enforce JSON schema via
-        # grammar-constrained sampling. qwen3's thinking tokens conflict with
-        # json_schema strict mode — think:false must be set first, then the
-        # format schema constrains the output tokens cleanly.
-        # Only applies to local Ollama models (openai/ prefix pointing to localhost).
-        if "openai/" in model_call_obj.model_name and self.config.openai_base_url and "localhost" in self.config.openai_base_url:
-            _ad_schema = {
+        # Disable thinking tokens and enforce JSON schema via grammar-constrained
+        # sampling. qwen3's thinking tokens conflict with json_schema strict mode —
+        # think:false disables them so the format schema constrains output cleanly.
+        # extra_body is Ollama-specific and ignored by other providers.
+        completion_args["extra_body"] = {
+            "think": False,
+            "format": {
                 "type": "object",
                 "properties": {
                     "ad_segments": {
@@ -682,8 +682,8 @@ class AdClassifier:
                 },
                 "required": ["ad_segments"],
                 "additionalProperties": False,
-            }
-            completion_args["extra_body"] = {"think": False, "format": _ad_schema}
+            },
+        }
 
         return completion_args
 
