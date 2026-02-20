@@ -658,35 +658,32 @@ class AdClassifier:
             # For older models and non-OpenAI models, use max_tokens
             completion_args["max_tokens"] = self.config.openai_max_tokens
 
-        # Enforce exact output schema via grammar-constrained sampling.
-        # Ollama enforces this at the token level — the model cannot produce
-        # wrong keys, markdown fences, truncated JSON, or trailing garbage.
-        completion_args["response_format"] = {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "ad_segments_response",
-                "strict": True,
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "ad_segments": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "segment_offset": {"type": "number"},
-                                    "confidence": {"type": "number"},
-                                },
-                                "required": ["segment_offset", "confidence"],
-                                "additionalProperties": False,
+        # For Ollama models: disable thinking tokens and enforce JSON schema via
+        # grammar-constrained sampling. qwen3's thinking tokens conflict with
+        # json_schema strict mode — think:false must be set first, then the
+        # format schema constrains the output tokens cleanly.
+        # Only applies to local Ollama models (openai/ prefix pointing to localhost).
+        if "openai/" in model_call_obj.model_name and self.config.openai_api_base and "localhost" in self.config.openai_api_base:
+            _ad_schema = {
+                "type": "object",
+                "properties": {
+                    "ad_segments": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "segment_offset": {"type": "number"},
+                                "confidence": {"type": "number"},
                             },
-                        }
-                    },
-                    "required": ["ad_segments"],
-                    "additionalProperties": False,
+                            "required": ["segment_offset", "confidence"],
+                            "additionalProperties": False,
+                        },
+                    }
                 },
-            },
-        }
+                "required": ["ad_segments"],
+                "additionalProperties": False,
+            }
+            completion_args["extra_body"] = {"think": False, "format": _ad_schema}
 
         return completion_args
 
