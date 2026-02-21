@@ -662,32 +662,18 @@ class AdClassifier:
 
         return completion_args
 
-    _AD_SCHEMA: Dict[str, Any] = {
-        "type": "object",
-        "properties": {
-            "ad_segments": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "segment_offset": {"type": "number"},
-                        "confidence": {"type": "number"},
-                    },
-                    "required": ["segment_offset", "confidence"],
-                    "additionalProperties": False,
-                },
-            }
-        },
-        "required": ["ad_segments"],
-        "additionalProperties": False,
-    }
-
     def _is_ollama(self) -> bool:
         base = self.config.openai_base_url or ""
         return "11434" in base
 
     def _call_ollama_native(self, messages: List[Dict], timeout: float) -> str:
-        """Call Ollama /api/chat directly with think=False and JSON schema enforcement."""
+        """Call Ollama /api/chat natively with loose JSON format.
+
+        Uses the native /api/chat endpoint instead of litellm's OpenAI-compat layer.
+        Ollama strips thinking tokens internally when format="json" — message.content
+        returns only the JSON output, no <think> tokens. The existing parser handles
+        any structural variance in the output.
+        """
         base = (self.config.openai_base_url or "http://localhost:11434/v1").rstrip("/")
         if base.endswith("/v1"):
             base = base[:-3]
@@ -701,8 +687,7 @@ class AdClassifier:
             "model": model_name,
             "messages": messages,
             "stream": False,
-            "think": False,
-            "format": self._AD_SCHEMA,
+            "format": "json",
             "options": {"num_predict": self.config.openai_max_tokens},
         }
 
@@ -1083,8 +1068,9 @@ class AdClassifier:
                 if completion_args is None:
                     return None  # Token limit exceeded
 
-                # Route to native Ollama API for local models (enforces JSON schema
-                # and disables thinking tokens which conflict with grammar sampling).
+                # Route to native Ollama API for local models. Ollama's /api/chat with
+                # format="json" strips thinking tokens internally — clean JSON output,
+                # full reasoning preserved. litellm's OpenAI-compat endpoint can't do this.
                 if self._is_ollama():
                     content = self._call_ollama_native(
                         messages=completion_args["messages"],
