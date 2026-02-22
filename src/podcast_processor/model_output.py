@@ -126,8 +126,27 @@ def clean_and_parse_model_output(model_output: str) -> AdSegmentPredictionList:
             logger.info("Successfully parsed model output after JSON repair")
             return result
         except Exception as repair_error:
-            logger.error(
-                f"JSON repair also failed. Original output (first 500 chars): {model_output[:500]}"
-            )
-            # Re-raise the original error with more context
-            raise first_error from repair_error
+            logger.debug(f"JSON repair failed: {repair_error}")
+
+        # Third attempt: normalize alternate schemas
+        # e.g. {"ads": [{"start": 1.2}]} -> {"ad_segments": [{"segment_offset": 1.2, "confidence": 0.9}]}
+        try:
+            import json
+            data = json.loads(model_output)
+            if "ads" in data and "ad_segments" not in data:
+                data["ad_segments"] = [
+                    {"segment_offset": seg.get("start", seg.get("offset", seg.get("timestamp", 0.0))),
+                     "confidence": seg.get("confidence", 0.9)}
+                    for seg in data["ads"]
+                ]
+                del data["ads"]
+                result = AdSegmentPredictionList.parse_obj(data)
+                logger.info("Parsed model output after normalizing alternate schema (ads -> ad_segments)")
+                return result
+        except Exception as norm_error:
+            logger.debug(f"Schema normalization failed: {norm_error}")
+
+        logger.error(
+            f"All parse attempts failed. Original output (first 500 chars): {model_output[:500]}"
+        )
+        raise first_error
