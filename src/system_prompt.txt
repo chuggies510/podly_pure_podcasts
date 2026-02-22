@@ -30,3 +30,10 @@ Example (show structure, not ads):
 [2675.0] You can join us on Facebook.com slash stuff you should know.
 [2684.0] For more on this and thousands of other topics, visit howstuffworks.com.
 Output: {"ad_segments":[]}
+
+Example (end-of-episode sponsor, no URL in every segment):
+[3401.0] The all-new Audi Q3, made for the yes life.
+[3405.0] We all know that feeling of change of plans, a new opportunity.
+[3412.0] Instead of overthinking, what if you just said yes?
+[3420.0] Learn more at AudiUSA.com.
+Output: {"ad_segments":[{"segment_offset":3401.0,"confidence":0.95},{"segment_offset":3405.0,"confidence":0.95},{"segment_offset":3412.0,"confidence":0.95},{"segment_offset":3420.0,"confidence":0.95}]}
