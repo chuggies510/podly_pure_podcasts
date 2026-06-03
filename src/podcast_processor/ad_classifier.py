@@ -688,6 +688,7 @@ class AdClassifier:
             "messages": messages,
             "stream": False,
             "format": "json",
+            "think": False,
             "options": {"num_predict": self.config.openai_max_tokens},
         }
 

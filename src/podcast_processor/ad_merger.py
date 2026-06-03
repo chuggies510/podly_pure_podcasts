@@ -16,7 +16,8 @@ class AdGroup:
 
 
 class AdMerger:
-    def __init__(self) -> None:
+    def __init__(self, show_domains: List[str] = None) -> None:
+        self.show_domains = set(d.lower() for d in (show_domains or []))
         self.url_pattern: Pattern[str] = re.compile(
             r"\b([a-z0-9\-\.]+\.(?:com|net|org|io))\b", re.I
         )
@@ -54,7 +55,7 @@ class AdMerger:
         identifications: List[Identification],
         max_gap: float,
     ) -> List[AdGroup]:
-        """Initial grouping by time proximity"""
+        """Initial grouping by time proximity."""
         id_lookup: Dict[int, Identification] = {
             i.transcript_segment_id: i for i in identifications
         }
@@ -94,8 +95,9 @@ class AdMerger:
         text = " ".join(s.text or "" for s in segments).lower()
         keywords: List[str] = []
 
-        # URLs
-        keywords.extend(self.url_pattern.findall(text))
+        # URLs (exclude show's own domains)
+        urls = self.url_pattern.findall(text)
+        keywords.extend(u for u in urls if u.lower() not in self.show_domains)
 
         # Promo codes
         keywords.extend(self.promo_pattern.findall(text))
@@ -158,7 +160,7 @@ class AdMerger:
 
     def _should_merge(self, group1: AdGroup, group2: AdGroup) -> bool:
         """Check if groups belong to same sponsor"""
-        # High confidence → merge
+        # High confidence -> merge
         if group1.confidence_avg >= 0.9 and group2.confidence_avg >= 0.9:
             return True
 

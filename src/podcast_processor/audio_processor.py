@@ -30,7 +30,7 @@ class AudioProcessor:
         )
         self.model_call_query = model_call_query or ModelCall.query
         self.db_session = db_session or db.session
-        self.ad_merger = AdMerger()
+        self.ad_merger = AdMerger(show_domains=["howstuffworks.com", "stuffyoushouldknow.com", "iheart.com", "iheartradio.com", "iheartmedia.com"])
 
     def get_ad_segments(self, post: Post) -> List[Tuple[float, float]]:
         """

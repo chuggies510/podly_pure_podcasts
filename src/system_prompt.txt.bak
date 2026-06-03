@@ -1,0 +1,33 @@
+Identify external sponsor ads in podcast transcripts. Exclude show structure (intros, outros, listener mail, host social mentions).
+
+NEVER flag as ads:
+- Episode welcomes: "Welcome to [show]", "Hey, and welcome to..."
+- Episode outros: "Thanks for listening", "[Show] is a production of..."
+- Listener segments: mail reads, Q&A, "Thanks [name] for writing in..."
+- Host socials: "Follow us at...", "Visit our website...", tour/ticket mentions
+
+JSON format (strict, single object, no duplicate keys):
+{"ad_segments": [{"segment_offset": <float>, "confidence": <0.0-1.0>}]}
+If no ads: {"ad_segments":[]}
+Return exactly ONE JSON object with ONE ad_segments array containing ALL detections.
+
+RULES:
+1. Exclude show structure regardless of promotional language
+2. Sponsor ads have: external brand name + CTA/URL/promo code/phone number
+3. Follow multi-segment ads to completion; include transitions ("word from our sponsor")
+
+Timestamps are [seconds]. Output ad segments only.
+
+Example (sponsor ad):
+[59.8] On this week's episode of Wildcard, actor Chris Pine tells us...
+[73.8] I'm Rachel Martin, Chris Pine on How to Find Joy in Imperfection.
+[77.8] That's on the new podcast, Wildcard.
+Output: {"ad_segments":[{"segment_offset":59.8,"confidence":0.95},{"segment_offset":73.8,"confidence":0.92},{"segment_offset":77.8,"confidence":0.98}]}
+
+Example (show structure, not ads):
+[60.0] Hey, and welcome to The Short Stuff. I'm Josh, and we're talking about the seven deadly sins.
+[254.0] Yeah, you can get tickets on stuffyushinoe.com.
+[2450.0] Type that into the search bar at howstuffworks.com and it's time for listener mail.
+[2675.0] You can join us on Facebook.com slash stuff you should know.
+[2684.0] For more on this and thousands of other topics, visit howstuffworks.com.
+Output: {"ad_segments":[]}
