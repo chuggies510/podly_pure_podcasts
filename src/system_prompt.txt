@@ -1,8 +1,9 @@
-Identify external sponsor ads in podcast transcripts. Exclude show structure (intros, outros, listener mail, host social mentions).
+Identify external sponsor ads in podcast transcripts. Exclude show structure (intros, outros, listener mail, host social mentions, network tags).
 
 NEVER flag as ads:
 - Episode welcomes: "Welcome to [show]", "Hey, and welcome to..."
 - Episode outros: "Thanks for listening", "[Show] is a production of..."
+- Network tags: "This is an iHeart Podcast", "Guaranteed Human", "[Network] podcast"
 - Listener segments: mail reads, Q&A, "Thanks [name] for writing in..."
 - Host socials: "Follow us at...", "Visit our website...", tour/ticket mentions
 
@@ -12,18 +13,40 @@ If no ads: {"ad_segments":[]}
 
 RULES:
 1. Exclude show structure regardless of promotional language
-2. Sponsor ads have: external brand name + CTA/URL/promo code/phone number
-3. Follow multi-segment ads to completion; include transitions ("word from our sponsor")
+2. A sponsor ad is ANY segment promoting an external product, service, or brand — not just segments with URLs. The entire ad read is an ad, including setup, testimonial, product description, and CTA
+3. Flag ALL segments of a multi-segment ad, not just the segment with the URL or promo code. If a segment is between two ad segments and discusses the same product, it is part of the ad
+4. Ad taglines and closers are ads even without a URL: "What's in your wallet?", "Like a good neighbor, State Farm is there", "Terms apply", "Terms and conditions apply", "See [brand].com for details"
+5. Soft-sell openers before the brand is named are part of the ad. If segments immediately before a confirmed ad read like a setup (rhetorical question, problem statement, testimonial framing), flag them too
 
 Timestamps are [seconds]. Output ad segments only.
 
-Example (sponsor ad):
-[59.8] On this week's episode of Wildcard, actor Chris Pine tells us...
-[73.8] I'm Rachel Martin, Chris Pine on How to Find Joy in Imperfection.
-[77.8] That's on the new podcast, Wildcard.
-Output: {"ad_segments":[{"segment_offset":59.8,"confidence":0.95},{"segment_offset":73.8,"confidence":0.92},{"segment_offset":77.8,"confidence":0.98}]}
+Example (full sponsor ad — flag ALL segments, not just the URL):
+[413.5] If you were to try two zero sugar colas with their labels removed
+[420.4] Well last year, Pepsi put that to the test for tens of thousands of people
+[429.4] 66% of people preferred the taste of Pepsi Zero Sugar over Coke Zero Sugar.
+[441.0] It really makes you wonder, are you choosing the zero sugar cola you prefer?
+[447.8] Go out and try Pepsi Zero Sugar today.
+Output: {"ad_segments":[{"segment_offset":413.5,"confidence":0.92},{"segment_offset":420.4,"confidence":0.95},{"segment_offset":429.4,"confidence":0.95},{"segment_offset":441.0,"confidence":0.93},{"segment_offset":447.8,"confidence":0.98}]}
+
+Example (ad with tagline and terms — no URL in every segment):
+[60.0] It's pretty much all he talks about, in a good way.
+[62.2] What's in your wallet?
+[63.0] Terms apply.
+[63.8] See CapitalOne.com slash bank.
+[66.4] Capital One, N-A, member FDIC.
+Output: {"ad_segments":[{"segment_offset":60.0,"confidence":0.90},{"segment_offset":62.2,"confidence":0.95},{"segment_offset":63.0,"confidence":0.95},{"segment_offset":63.8,"confidence":0.95},{"segment_offset":66.4,"confidence":0.95}]}
+
+Example (soft-sell opener before brand mention):
+[4.8] Ever feel like your bedroom's shrinking?
+[7.6] Don't worry, you don't have to sell your favorite things to make space.
+[10.8] With IKEA bedroom storage solutions, think dressers, wardrobes, full closets,
+[16.0] even storage boxes.
+[17.7] You can keep it all.
+[31.4] Shop now at ikea.us slash bedroom storage.
+Output: {"ad_segments":[{"segment_offset":4.8,"confidence":0.90},{"segment_offset":7.6,"confidence":0.90},{"segment_offset":10.8,"confidence":0.95},{"segment_offset":16.0,"confidence":0.95},{"segment_offset":17.7,"confidence":0.95},{"segment_offset":31.4,"confidence":0.95}]}
 
 Example (show structure, not ads):
+[0.0] This is an iHeart Podcast, Guaranteed Human.
 [60.0] Hey, and welcome to The Short Stuff. I'm Josh, and we're talking about the seven deadly sins.
 [254.0] Yeah, you can get tickets on stuffyushinoe.com.
 [2450.0] Type that into the search bar at howstuffworks.com and it's time for listener mail.

@@ -162,14 +162,18 @@ class JobsManager:
 
         created = 0
         for post in posts_without_jobs:
-            if post.whitelisted:
-                SingleJobManager(
-                    post.guid,
-                    self._status_manager,
-                    logger,
-                    run_id,
-                ).ensure_job()
-                created += 1
+            if not post.whitelisted:
+                continue
+            # Skip posts that already have processed audio on disk
+            if post.processed_audio_path and os.path.exists(post.processed_audio_path):
+                continue
+            SingleJobManager(
+                post.guid,
+                self._status_manager,
+                logger,
+                run_id,
+            ).ensure_job()
+            created += 1
         return created
 
     def get_post_status(self, post_guid: str) -> Dict[str, Any]:
